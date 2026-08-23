@@ -87,7 +87,7 @@ A **vertical bar chart** is the best fit for this task.
 | **Bar chart (chosen)** | Compares a small number of **categories** (countries) on one **numeric** measure. Ranking and differences are easy to see. |
 | Line chart | Better for trends over time; we have no time series here. |
 | Pie / donut | Poor for precise comparison of magnitudes; hard to compare close values (e.g. Brazil vs Finland). |
-| Scatter | Better for relationships between two continuous variables, not a simple ranked comparison. |
+| Scatter | Better for relationships between two/three continuous variables, not a simple ranked comparison. |
 
 For **three countries**, bars are clear, labelled, and suitable for both Matplotlib (report/PNG) and Plotly (interactive hover).
 
