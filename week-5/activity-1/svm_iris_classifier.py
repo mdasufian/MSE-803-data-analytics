@@ -13,7 +13,8 @@ Steps:
   4. Compare kernels (linear, RBF, polynomial) with cross-validation
   5. Tune C and gamma with GridSearchCV
   6. Evaluate on the held-out test set (accuracy, per-class report, confusion matrix)
-  7. Plot the decision boundaries using the two petal features
+  7. Evaluate every kernel (linear, RBF, polynomial) on the test set, side by side
+  8. Plot the decision boundaries using the two petal features
 
 Kept simple for a master's data analytics class.
 """
@@ -175,7 +176,7 @@ def tune_model(X_train, y_train):
     print(f"Best parameters:     {search.best_params_}")
     print(f"Best CV accuracy:    {search.best_score_:.4f}")
     print()
-    return search.best_estimator_
+    return search.best_estimator_, search
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +226,68 @@ def evaluate(model, X_test, y_test):
 
 
 # ---------------------------------------------------------------------------
-# 7. Decision boundary picture (2 features so it can be drawn)
+# 7. Confusion matrix for every kernel (not just the overall best model)
+# ---------------------------------------------------------------------------
+def best_params_per_kernel(search):
+    """Pull out each kernel's own best hyper-parameters from the grid search results."""
+    results = pd.DataFrame(search.cv_results_)
+    best = {}
+    for kernel in results["param_svm__kernel"].unique():
+        subset = results[results["param_svm__kernel"] == kernel]
+        top = subset.loc[subset["mean_test_score"].idxmax()]
+        params = {k.replace("svm__", ""): v for k, v in top["params"].items()}
+        best[kernel] = params
+    return best
+
+
+def evaluate_all_kernels(search, X_train, y_train, X_test, y_test):
+    """Fit each kernel's own best model and compare their confusion matrices side by side."""
+    print("=" * 70)
+    print("6. CONFUSION MATRIX FOR EVERY KERNEL")
+    print("=" * 70)
+
+    best_params = best_params_per_kernel(search)
+    # Fixed left-to-right order regardless of dict iteration order
+    order = [k for k in ["linear", "rbf", "poly"] if k in best_params]
+
+    fig, axes = plt.subplots(1, len(order), figsize=(6 * len(order), 5))
+    if len(order) == 1:
+        axes = [axes]
+
+    rows = []
+    for ax, kernel in zip(axes, order):
+        params = best_params[kernel]
+        model = make_pipeline(**params).fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        cm = confusion_matrix(y_test, y_pred, labels=CLASS_NAMES)
+
+        print(f"\n--- kernel = {kernel}  (params: {params}) ---")
+        print(f"Test accuracy: {accuracy:.4f}  ({int(round(accuracy * len(y_test)))}/{len(y_test)} correct)")
+        print(classification_report(y_test, y_pred, target_names=CLASS_NAMES, digits=3))
+
+        ConfusionMatrixDisplay(cm, display_labels=CLASS_NAMES).plot(
+            ax=ax, cmap="Blues", colorbar=False
+        )
+        ax.set_title(f"{kernel} kernel\naccuracy = {accuracy:.3f}")
+        ax.tick_params(axis="x", rotation=20)
+        rows.append({"kernel": kernel, "params": params, "test_accuracy": accuracy})
+
+    fig.suptitle("Confusion matrix per kernel — Iris test set")
+    plt.tight_layout()
+    fig.savefig(OUTPUT_DIR / "confusion_matrix_all_kernels.png", dpi=150)
+    plt.close(fig)
+    print(f"\nSaved: {OUTPUT_DIR / 'confusion_matrix_all_kernels.png'}")
+
+    summary = pd.DataFrame(rows)
+    print("\nTest accuracy by kernel:")
+    print(summary[["kernel", "test_accuracy"]].round(4).to_string(index=False))
+    print()
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# 8. Decision boundary picture (2 features so it can be drawn)
 # ---------------------------------------------------------------------------
 def plot_decision_boundaries(df):
     """Train a separate 2-feature SVM per kernel and draw the class regions."""
@@ -284,12 +346,12 @@ def plot_feature_pairs(df):
 
 
 # ---------------------------------------------------------------------------
-# 8. Predict a few new flowers
+# 9. Predict a few new flowers
 # ---------------------------------------------------------------------------
 def predict_new_flowers(model):
     """Show the trained model classifying three unseen measurements."""
     print("=" * 70)
-    print("7. PREDICTING NEW FLOWERS")
+    print("8. PREDICTING NEW FLOWERS")
     print("=" * 70)
 
     new_flowers = pd.DataFrame(
@@ -319,7 +381,7 @@ def main():
     X_train, X_test, y_train, y_test = split_data(df)
     compare_kernels(X_train, y_train)
 
-    best_model = tune_model(X_train, y_train)
+    best_model, search = tune_model(X_train, y_train)
     evaluate(best_model, X_test, y_test)
 
     svm = best_model.named_steps["svm"]
@@ -327,8 +389,10 @@ def main():
     print(f"Total support vectors: {svm.n_support_.sum()} out of {len(X_train)} training flowers")
     print("(3 classes are handled with one-vs-one: 3 binary SVMs are combined by voting.)\n")
 
+    evaluate_all_kernels(search, X_train, y_train, X_test, y_test)
+
     print("=" * 70)
-    print("6. FIGURES")
+    print("7. FIGURES")
     print("=" * 70)
     plot_feature_pairs(df)
     plot_decision_boundaries(df)

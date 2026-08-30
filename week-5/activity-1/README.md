@@ -11,7 +11,8 @@ Trains a **Support Vector Machine** to classify the three iris species in Fisher
 | `../iris/iris.data` | Raw UCI Iris dataset (150 rows, no header) |
 | `outputs/feature_scatter.png` | Sepal vs petal scatter plots coloured by species |
 | `outputs/decision_boundaries.png` | Decision regions for linear / RBF / polynomial kernels |
-| `outputs/confusion_matrix.png` | Confusion matrix on the test set |
+| `outputs/confusion_matrix.png` | Confusion matrix on the test set (best overall model) |
+| `outputs/confusion_matrix_all_kernels.png` | Confusion matrix per kernel (linear, RBF, poly), side by side |
 | `outputs/classification_report.csv` | Per-class precision, recall, F1 |
 
 The notebook adds four views the script does not save: box plots of each feature by species, a bar chart of the kernel comparison, an RBF `C` × `gamma` accuracy heatmap, and a plot with the support vectors circled.
@@ -112,7 +113,29 @@ Only **2 errors**, both between *versicolor* and *virginica*.
 
 ---
 
-## 6. Interpretation
+## 6. Confusion matrix per kernel
+
+The test-set evaluation above uses only the **overall best model** (linear, picked by cross-validation). To see how each kernel actually behaves, every kernel is refit with **its own best hyper-parameters** from the grid search and evaluated on the same test set:
+
+| Kernel | Best params | Test accuracy |
+|--------|-------------|----------------|
+| linear | `C=0.1` | 0.933 (28/30) |
+| **rbf** | `C=1, gamma=0.1` | **0.967 (29/30)** |
+| poly | `C=10, degree=3` | 0.933 (28/30) |
+
+| | setosa | versicolor | virginica |  | | setosa | versicolor | virginica |  | | setosa | versicolor | virginica |
+|--|--|--|--|--|--|--|--|--|--|--|--|--|--|
+| **linear** — setosa | 10 | 0 | 0 | | **rbf** — setosa | 10 | 0 | 0 | | **poly** — setosa | 10 | 0 | 0 |
+| versicolor | 0 | 9 | 1 | | versicolor | 0 | 9 | 1 | | versicolor | 0 | 10 | 0 |
+| virginica | 0 | 1 | 9 | | virginica | 0 | 0 | 10 | | virginica | 0 | 2 | 8 |
+
+See `outputs/confusion_matrix_all_kernels.png` for the visual side-by-side.
+
+On *this particular* 30-flower test split, RBF happens to make only 1 mistake instead of 2. It doesn't overturn the earlier choice, though: cross-validation (Section 3) averages over many splits — 5 folds × several repeats worth of held-out folds — and there RBF (0.967) still trails linear (0.975). A single test split is a noisy estimate; the CV comparison is the more reliable one, which is why linear stays the recommended model. It's still worth noting *where* each kernel's errors land — poly's 2 mistakes are both virginica flowers mislabelled as versicolor, while linear splits its 2 errors one each way.
+
+---
+
+## 7. Interpretation
 
 - **Setosa is perfectly classified.** It is linearly separable from the other two on petal size alone.
 - **Versicolor and virginica overlap.** Their petal measurements touch around petal length ≈ 5 cm, and every error the model makes is on that border — a known property of this dataset, not a modelling fault.
@@ -121,7 +144,7 @@ Only **2 errors**, both between *versicolor* and *virginica*.
 
 ---
 
-## 7. Example predictions
+## 8. Example predictions
 
 | Measurements (sepal L/W, petal L/W) | Predicted species |
 |-------------------------------------|-------------------|
